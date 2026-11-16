@@ -1,6 +1,7 @@
 import { sql } from '../db.js';
 import { env } from '../env.js';
-import { gate } from './guardrails.js';
+import { gate, levelOf } from './guardrails.js';
+import { prepareLiveSend } from './campaignSending.js';
 import { analytics, averageOf, getSend, linkGroups, mainSends, searchListings } from './data.js';
 import { getDefaults } from './actions.js';
 import { hardBounces, isConnected } from './zoho.js';
@@ -161,6 +162,18 @@ export const tools: Record<string, Tool> = {
       title: env.demoMode ? `Simulate Zoho upload: "${draft.name}"` : draft.zoho_campaign_id ? `Update the Zoho draft "${draft.name}"` : `Upload "${draft.name}" to Zoho Campaigns as a draft`,
       summary: `${env.demoMode ? 'SIMULATION ONLY. No external account will be changed. ' : ''}Subject: ${draft.subject}. List: ${defaults.list_name}. Topic: ${defaults.topic_name}. Sender: ${defaults.sender_email}. It is saved as a draft and not scheduled.`,
       payload: { draft_id },
+    });
+  },
+
+  send_campaign: async ({ draft_id }, ctx) => {
+    if (env.demoMode) return { status: 'blocked', note: 'Live campaign sending is disabled in the demo.' };
+    if (await levelOf('send_live') === 'draft_only') return { status: 'blocked', note: 'Live sending is off. The owner can send manually or enable approval-based or automatic sending in Settings → Guardrails → Send campaigns live.' };
+    const snapshot = await prepareLiveSend(String(draft_id));
+    return gate({
+      action: 'send_live', threadId: ctx.threadId,
+      title: `Send live: "${snapshot.subject}"`,
+      summary: `Send now to the ${snapshot.list_name} mailing list (ID ${snapshot.list_id}), from ${snapshot.sender}. Topic ID: ${snapshot.topic_id}. Campaign ID: ${snapshot.campaign_id}. This reaches the mailing list, not just your test inbox. Review the uploaded email preview before approving.`,
+      payload: snapshot,
     });
   },
 

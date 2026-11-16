@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ExternalLink, Hand, MonitorPlay, Send, Upload, X } from 'lucide-react';
-import { api, clock, shortDate, type Draft, type Step } from '../api';
+import { api, clock, shortDate, liveSendLabel, type Draft, type Step } from '../api';
 import { Mascot, Switch } from './bits';
 import { useApp } from '../App';
 import { ResizeHandle } from './ResizeHandle';
@@ -141,13 +141,13 @@ export function ComputerPanel(props: {
                 />
                 <div className="preview-actions">
                   <span className={`chip ${draft.status === 'uploaded' ? 'good' : draft.status === 'tested' ? 'accent' : ''}`}>
-                    {draft.status === 'uploaded' ? (boot.demoMode ? 'Simulated Zoho draft' : 'In Zoho as a draft') : draft.status === 'tested' ? (boot.demoMode ? 'Test simulated' : 'Test sent to you') : 'Draft, not uploaded'}
+                    {liveSendLabel(draft.status) || (draft.status === 'uploaded' ? (boot.demoMode ? 'Simulated Zoho draft' : 'In Zoho as a draft') : draft.status === 'tested' ? (boot.demoMode ? 'Test simulated' : 'Test sent to you') : 'Draft, not uploaded')}
                   </span>
                   <span style={{ flex: 1 }} />
                   <button className="btn sm" disabled={props.working} onClick={() => props.onAsk(`Send me a test of the draft "${draft.subject}".`)}>
                     <Send /> {boot.demoMode ? 'Simulate test' : 'Send me a test'}
                   </button>
-                  <button className="btn sm" disabled={props.working} onClick={() => props.onAsk(`Upload the draft "${draft.subject}" to Zoho Campaigns as a draft.`)}>
+                  <button className="btn sm" disabled={props.working || Boolean(liveSendLabel(draft.status))} onClick={() => props.onAsk(`Upload the draft "${draft.subject}" to Zoho Campaigns as a draft.`)}>
                     <Upload /> {boot.demoMode ? 'Simulate Zoho upload' : draft.zoho_campaign_id ? 'Update in Zoho' : 'Upload to Zoho'}
                   </button>
                 </div>

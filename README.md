@@ -1,6 +1,6 @@
 # Email Campaign Agent
 
-A self-hosted email campaign agent with a dashboard, approvals, drafts, and step-by-step setup. It helps a rental business plan, write, and improve its marketing emails. You talk to it in the dashboard, review its work, and decide how much control to keep over campaign actions.
+A self-hosted email campaign agent with a dashboard, approvals, drafts, and step-by-step setup. It helps a rental business plan, write, and improve its marketing emails. You talk to it in the dashboard, review its work, and choose whether to send the finished campaign yourself or let the agent send it, depending on how much control you want.
 
 This template comes from a working application. It includes the real dashboard, Claude worker, database, integrations, and approval system. Your copy starts empty: you bring your own accounts, listings, mailing lists, and campaign history.
 
@@ -11,12 +11,13 @@ This template comes from a working application. It includes the real dashboard, 
 - **Plans campaigns:** uses current rental listings and past campaign results to propose emails.
 - **Writes drafts:** assembles subject lines, copy, listing photos, prices, and links into an email preview.
 - **Keeps you in control:** asks for approval according to your settings before actions such as sending a test, uploading a draft, or removing bounced contacts.
+- **Offers a choice of sending controls:** send campaigns yourself, approve each live send, or allow automatic sending through your connected campaign provider.
 - **Shows results:** imports Zoho campaign history and compares opens, clicks, and other results.
 - **Remembers preferences:** saves approved lessons for future conversations.
 - **Works on a schedule:** can refresh data, plan emails, review results, and check bounced addresses.
 - **Connects to other apps:** optional Gmail and other connections through Composio; optional email, iMessage, and image tools.
 
-**It does not send or schedule a live marketing campaign.** It uploads a draft to Zoho Campaigns. You review and send it there. A test email goes to the owner, through AgentMail, not to the mailing list.
+**Live sending is optional and off by default.** The agent can upload a draft for you to send from Zoho Campaigns, or send it through that connection when you enable live sending. You choose whether each live send needs approval or can run automatically. Uploading a draft alone never sends it. A test email goes to the owner through AgentMail; a live campaign goes to the configured mailing list.
 
 The included listing importer and writing instructions are designed for **residential rentals using AppFolio and Zoho Campaigns**. Other businesses can reuse the application, but replacing the listing source or campaign provider requires code changes. Connecting Gmail does not replace the Zoho campaign integration.
 
@@ -161,7 +162,23 @@ Zoho CRM is a separate optional connection: set `ZOHO_CRM_MCP_URL` and connect i
 3. Read the email preview and ask for any changes.
 4. If you configured AgentMail below, ask for a test email and approve it when prompted.
 5. Ask to upload the draft to Zoho, approve the action, then open Zoho Campaigns to inspect it.
-6. Send from Zoho only when you are ready.
+6. Send it yourself from Zoho, or choose one of the agent-sending options below.
+
+### Choose how much control you want over sending
+
+In **Settings → Guardrails → Send campaigns live**, choose:
+
+| Option | What happens |
+| --- | --- |
+| **Manual sending (agent off)** — default | The agent prepares and uploads drafts. You open your campaign provider and send them yourself. |
+| **Approve each live send** | Ask the agent to send an uploaded draft. It shows an approval identifying the subject, sender, mailing list, topic, and campaign. Review the email preview and approve when ready. |
+| **Automatic sending** | The agent can send an uploaded draft without asking for another approval. Use this only when you want to delegate live sending. Separate upload and other action guardrails still apply. |
+
+For example: “Send the campaign we just uploaded to the configured mailing list.” This sends **now**, not at a future scheduled time. The saved planned date is not a delivery schedule. The connected provider must expose the supported live-send tool and permit sending for your account.
+
+The app checks that the uploaded draft, sender, list, and topic still match the send request. If you change the draft or campaign settings, upload again and request a new send. Drafts uploaded before this feature was installed also need a fresh upload. Avoid editing that campaign directly in the provider while a send is awaiting approval.
+
+After a send is attempted, the app locks that draft against editing and repeat sends. If a connection fails during sending, it reports an **unconfirmed outcome** instead of automatically retrying: the provider may already have accepted it. Check the campaign in Zoho before taking any further action, and never create a duplicate just to get around that warning. “Submitted” means the provider accepted the request; it does not mean every email was delivered.
 
 Use **Settings → Guardrails** to choose which actions require approval. Scheduled planning and result reviews start paused on fresh installations; turn them on in **Settings → Automations** after the manual flow works. The data refresh runs daily. Schedules currently use **America/New_York** time.
 
@@ -206,6 +223,8 @@ Your Railway website needs to stay running for schedules, inbound messages, and 
 | No listings | Save your public AppFolio URL, then Sync now. The importer depends on AppFolio's page structure and may need updating if that structure changes. |
 | Test email fails | AgentMail inbox/key and `OWNER_EMAIL` are required. A connected Gmail account is not the test-email sender. |
 | Draft upload fails | Check the verified sender, list ID, and topic ID in Campaign setup, plus the Zoho connection. |
+| Live send is blocked | Check the Send campaigns live setting, upload the latest draft, and confirm that the connected provider supports live sending. |
+| Send outcome is unconfirmed | Check that campaign in Zoho. Do not retry or duplicate it: delivery may already have started. |
 | Changed `.env`, nothing changed | Restart the relevant server or worker. Hosted settings must be changed in the hosting service too. |
 
 ## For people adapting the code

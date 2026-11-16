@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
-import { api, int, pct, shortDate, useData, type Draft, type Send } from '../api';
+import { api, int, pct, shortDate, useData, liveSendLabel, type Draft, type Send } from '../api';
 import { Segmented } from '../components/bits';
 import { useApp } from '../App';
 
@@ -95,7 +95,7 @@ export function Campaigns() {
                       <td className="r hide-narrow">{d.send_on ? shortDate(d.send_on) : 'No date yet'}</td>
                       <td className="r">
                         <span className={`chip ${d.status === 'uploaded' ? 'good' : d.status === 'tested' ? 'accent' : ''}`}>
-                          {d.status === 'uploaded' ? (boot.demoMode ? 'Simulated Zoho draft' : 'In Zoho as a draft') : d.status === 'tested' ? (boot.demoMode ? 'Test simulated' : 'Test sent') : 'Draft here'}
+                          {liveSendLabel(d.status) || (d.status === 'uploaded' ? (boot.demoMode ? 'Simulated Zoho draft' : 'In Zoho as a draft') : d.status === 'tested' ? (boot.demoMode ? 'Test simulated' : 'Test sent') : 'Draft here')}
                         </span>
                       </td>
                     </tr>

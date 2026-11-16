@@ -12,7 +12,7 @@ import { env } from '../env.js';
 /**
  * Zoho is reached through the account's Zoho MCP servers, signed in once from
  * Settings. This is the only place that talks to Zoho; Zoho stays the system
- * of record and nothing here can launch, schedule or delete a campaign.
+ * of record. Live sending has a separate, opt-in approval path.
  */
 export type ZohoServer = 'zoho_campaigns' | 'zoho_crm';
 
@@ -159,6 +159,72 @@ export async function zohoCall<T = unknown>(server: ZohoServer, tool: string, ar
 export async function isConnected(server: ZohoServer): Promise<boolean> {
   if (env.demoMode) return server === 'zoho_campaigns'; // Local draft simulation only; zohoCall remains blocked.
   return Boolean((await readSecrets(server)).tokens);
+}
+
+/** Read-only capability inspection. */
+export async function zohoToolCatalog() {
+  return (await client('zoho_campaigns')).listTools();
+}
+
+export type CampaignForSending = {
+  subject: string;
+  sender_email: string;
+  list_ids: string[];
+  topic_id: string;
+  revision: unknown;
+};
+
+export function campaignForSending(data: any): CampaignForSending {
+  if (!data || typeof data !== 'object' || data.status !== 'draft') {
+    throw new Error('Only a provider campaign still in draft status can be sent by the agent. Check the campaign in Zoho.');
+  }
+  const lists = data.recipient?.list_info_array;
+  if (typeof data.subject !== 'string' || typeof data.sender_email !== 'string' ||
+      typeof data.topic_id !== 'string' || !Array.isArray(lists) || !lists.length ||
+      lists.some((list: any) => typeof list.list_id !== 'string')) {
+    throw new Error('The provider did not return enough sender and recipient information to verify this live send.');
+  }
+  if (!data.updated_at && typeof data.content !== 'string') {
+    throw new Error('The provider did not return a campaign revision or content for send verification. Send this campaign manually.');
+  }
+  return { subject: data.subject, sender_email: data.sender_email,
+    list_ids: lists.map((list: any) => list.list_id).sort(), topic_id: data.topic_id,
+    revision: data };
+}
+
+export async function getCampaignForSending(campaignId: string): Promise<CampaignForSending> {
+  await liveSendTool();
+  return campaignForSending(await getCampaignRevision(campaignId));
+}
+
+export async function getCampaignRevision(campaignId: string): Promise<unknown> {
+  const response = await zohoCall<{ data: unknown }>('zoho_campaigns', 'ZohoCampaigns_getCampaign', { path_variables: { campaign_id: campaignId } });
+  if (!response.data || typeof response.data !== 'object') throw new Error('The provider did not return the uploaded campaign.');
+  return response.data;
+}
+
+export function validateLiveSendTool(tool: { name: string; inputSchema: any } | undefined) {
+  const schema = tool?.inputSchema;
+  const path = schema?.properties?.path_variables;
+  if (tool?.name !== 'ZohoCampaigns_sendCampaign' || schema?.type !== 'object' ||
+      path?.type !== 'object' || path.properties?.campaign_id?.type !== 'string' ||
+      (schema.required ?? []).some((key: string) => key !== 'path_variables') ||
+      (path.required ?? []).some((key: string) => key !== 'campaign_id')) {
+    throw new Error('This Zoho connector does not expose the supported immediate-send tool. Send manually until your connector supports ZohoCampaigns_sendCampaign with a campaign_id path variable.');
+  }
+}
+
+async function liveSendTool() {
+  if (env.demoMode) throw new Error('Live campaign sending is disabled in the demo.');
+  const catalog = await zohoToolCatalog();
+  const tool = catalog.tools.find((item) => item.name === 'ZohoCampaigns_sendCampaign');
+  validateLiveSendTool(tool);
+}
+
+/** No retries: callers must durably claim the campaign before invoking this. */
+export async function sendCampaignNow(campaignId: string) {
+  await liveSendTool();
+  return zohoCall('zoho_campaigns', 'ZohoCampaigns_sendCampaign', { path_variables: { campaign_id: campaignId } });
 }
 
 // --- The handful of writes the command center is allowed to make -------------
