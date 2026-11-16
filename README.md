@@ -1,6 +1,6 @@
 # Email Campaign Agent
 
-An AI assistant that helps a rental business plan, write, and improve its marketing emails. You talk to it in a dashboard, review its work, approve actions, and send the finished campaign from Zoho.
+A self-hosted email campaign agent with a dashboard, approvals, drafts, and step-by-step setup. It helps a rental business plan, write, and improve its marketing emails. You talk to it in the dashboard, review its work, and decide how much control to keep over campaign actions.
 
 This template comes from a working application. It includes the real dashboard, Claude worker, database, integrations, and approval system. Your copy starts empty: you bring your own accounts, listings, mailing lists, and campaign history.
 
