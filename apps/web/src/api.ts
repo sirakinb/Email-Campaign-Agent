@@ -140,7 +140,7 @@ export type Draft = {
   subject_b: string | null;
   preheader: string | null;
   send_on: string | null;
-  status: 'draft' | 'tested' | 'uploaded';
+  status: 'draft' | 'tested' | 'uploaded' | 'submitting' | 'submitted' | 'unknown';
   zoho_campaign_id: string | null;
   thread_id?: string | null;
   updated_at: string;
@@ -154,6 +154,13 @@ export type ThreadDetail = {
   drafts: Draft[];
   jobs: { id: string; status: string; created_at: string }[];
 };
+
+export function liveSendLabel(status: Draft['status']): string | null {
+  if (status === 'submitting') return 'Send requested — check provider before retrying';
+  if (status === 'submitted') return 'Live send submitted';
+  if (status === 'unknown') return 'Send outcome unconfirmed — check provider';
+  return null;
+}
 
 export type Send = {
   id: string;

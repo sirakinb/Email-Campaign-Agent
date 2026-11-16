@@ -79,7 +79,7 @@ export async function decide(approvalId: string, approve: boolean, via: Channel)
   }
 
   try {
-    const result = await executors[approval.action](approval.payload, approval.thread_id);
+    const result = await executors[approval.action](approval.payload, approval.thread_id, { approvalId: approval.id });
     await sql`update approvals set status = 'done', result = ${json(result ?? {})} where id = ${approvalId}`;
     publish({ type: 'approval', approvalId, threadId: approval.thread_id });
     await tellThread(

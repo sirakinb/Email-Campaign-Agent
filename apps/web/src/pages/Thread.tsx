@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEve
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowUp, Check, CheckCheck, FileText, Monitor, MoreHorizontal, RotateCcw, ShieldCheck, Square, Trash2, X } from 'lucide-react';
-import { api, clock, onLive, shortDate, useData, type Approval, type Draft, type Message, type Step, type ThreadDetail } from '../api';
+import { api, clock, onLive, shortDate, useData, liveSendLabel, type Approval, type Draft, type Message, type Step, type ThreadDetail } from '../api';
 import { ChannelTag, Dialog, Markdown, Mascot } from '../components/bits';
 import { ComputerPanel } from '../components/ComputerPanel';
 import { useApp, agentStateText } from '../App';
@@ -395,7 +395,7 @@ export function Thread() {
                     </div>
                     <div className="row-sub">
                       Draft{item.draft.send_on ? ` for ${shortDate(item.draft.send_on)}` : ''} ·{' '}
-                      {item.draft.status === 'uploaded' ? (boot.demoMode ? 'Simulated Zoho draft' : 'In Zoho as a draft') : item.draft.status === 'tested' ? (boot.demoMode ? 'Test simulated' : 'Test sent to you') : 'Not uploaded'}
+                      {liveSendLabel(item.draft.status) || (item.draft.status === 'uploaded' ? (boot.demoMode ? 'Simulated Zoho draft' : 'In Zoho as a draft') : item.draft.status === 'tested' ? (boot.demoMode ? 'Test simulated' : 'Test sent to you') : 'Not uploaded')}
                     </div>
                   </span>
                   <span className="chip accent">Preview</span>

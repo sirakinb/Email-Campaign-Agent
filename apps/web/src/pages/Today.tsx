@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, FileText, Info, Plus, RefreshCw } from 'lucide-react';
-import { ago, api, int, pct, shortDate, until, useData, type Approval, type Averages, type Draft, type Send } from '../api';
+import { ago, api, int, pct, shortDate, until, useData, liveSendLabel, type Approval, type Averages, type Draft, type Send } from '../api';
 import { ApprovalCard } from './Thread';
 import { Delta } from '../components/bits';
 import { useApp } from '../App';
@@ -28,8 +28,8 @@ export function Today() {
   if (!data) return <div className="page" />;
   const latest = data.latest;
   const zoho = data.sync.find((s) => s.source === 'zoho_campaigns');
-  const inZoho = data.drafts.filter((d) => d.status === 'uploaded');
-  const inProgress = data.drafts.filter((d) => d.status !== 'uploaded');
+  const inZoho = data.drafts.filter((d) => d.status === 'uploaded' || liveSendLabel(d.status));
+  const inProgress = data.drafts.filter((d) => d.status === 'draft' || d.status === 'tested');
 
   return (
     <div className="page">
@@ -61,10 +61,10 @@ export function Today() {
 
         {inZoho.length > 0 && (
           <>
-            <h2 className="section-title">{boot.demoMode ? 'Simulated draft handoffs' : 'Ready in Zoho for you to send'}</h2>
+            <h2 className="section-title">{boot.demoMode ? 'Simulated draft handoffs' : 'Campaign handoffs and sends'}</h2>
             <div className="card">
               {inZoho.map((d) => (
-                <DraftRow key={d.id} draft={d} note={boot.demoMode ? 'Simulation completed in this demo. No real Zoho account was changed.' : 'Saved in Zoho Campaigns as a draft. Schedule or send it there.'} />
+                <DraftRow key={d.id} draft={d} note={liveSendLabel(d.status) || (boot.demoMode ? 'Simulation completed in this demo. No real Zoho account was changed.' : 'Saved as a draft. Send manually, or ask the agent to send if enabled in Settings.')} />
               ))}
             </div>
           </>

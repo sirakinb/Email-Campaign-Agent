@@ -2,10 +2,11 @@ import { json, sql } from '../db.js';
 import { publish } from '../bus.js';
 import { env } from '../env.js';
 import { sendEmail } from './agentmail.js';
-import { createDraftCampaign, removeFromList, updateDraftCampaign } from './zoho.js';
+import { createDraftCampaign, getCampaignRevision, removeFromList, updateDraftCampaign } from './zoho.js';
 import { generateImage } from './media.js';
 import { executeAppTool } from './connectedApps.js';
 import { renderEmail, type EmailListing } from './emailTemplate.js';
+import { executeLiveSend, fingerprint, uploadFingerprint, type SendSnapshot } from './campaignSending.js';
 
 export type ActionName =
   | 'plan'
@@ -18,7 +19,7 @@ export type ActionName =
   | 'send_live'
   | 'connected_app_action';
 
-type Executor = (payload: Record<string, any>, threadId: string | null) => Promise<unknown>;
+type Executor = (payload: Record<string, any>, threadId: string | null, context?: { approvalId: string }) => Promise<unknown>;
 
 export type Defaults = {
   sender_email: string;
@@ -45,10 +46,11 @@ export type DraftRow = {
   html: string;
   listing_ids: string[];
   send_on: string | null;
-  status: 'draft' | 'tested' | 'uploaded';
+  status: 'draft' | 'tested' | 'uploaded' | 'submitting' | 'submitted' | 'unknown';
   zoho_campaign_id: string | null;
   created_at: string;
   updated_at: string;
+  send_locked: boolean;
 };
 
 async function getDraft(id: string): Promise<DraftRow> {
@@ -106,8 +108,8 @@ export const executors: Record<ActionName, Executor> = {
           preheader = ${payload.preheader ?? null}, html = ${html}, listing_ids = ${json(listingIds)},
           send_on = ${payload.send_on ?? null}, status = case when status = 'uploaded' then 'uploaded' else 'draft' end,
           updated_at = now()
-        where id = ${payload.draft_id} returning *`;
-      if (!updated) throw new Error('That draft no longer exists.');
+        where id = ${payload.draft_id} and not send_locked returning *`;
+      if (!updated) throw new Error('This draft no longer exists or a live send was already attempted. Create a new draft instead.');
       publish({ type: 'draft', draftId: updated.id, threadId: updated.thread_id });
       return {
         draft_id: updated.id,
@@ -148,7 +150,7 @@ export const executors: Record<ActionName, Executor> = {
     return { sent_to: env.ownerEmail, message_id: sent.message_id };
   },
 
-  /** Creates or updates the campaign in Zoho as a draft. Sending stays with the owner, in Zoho. */
+  /** Uploading is separate from the optional live-send action. */
   upload_draft: async (payload) => {
     const draft = await getDraft(payload.draft_id);
     if (env.demoMode) {
@@ -157,35 +159,44 @@ export const executors: Record<ActionName, Executor> = {
       publish({ type: 'draft', draftId: draft.id, threadId: draft.thread_id });
       return { simulated: true, demo_draft_id: id, note: 'SIMULATED: draft handoff recorded in the demo only. No live Zoho account was accessed and no email was sent.' };
     }
-    const defaults = await getDefaults();
-    if (![defaults.sender_email, defaults.sender_name, defaults.list_id, defaults.topic_id].every((value) => value.trim())) {
-      throw new Error('Complete the sender, mailing list ID and topic ID in Settings → Campaign setup before uploading.');
-    }
-    const upload = {
-      name: draft.name,
-      subject: draft.subject,
-      preheader: draft.preheader,
-      html: draft.html,
-      senderEmail: defaults.sender_email,
-      senderName: defaults.sender_name,
-      listId: defaults.list_id,
-      topicId: defaults.topic_id,
-    };
-    let campaignId = draft.zoho_campaign_id;
-    if (campaignId) {
-      await updateDraftCampaign(campaignId, upload);
-    } else {
-      campaignId = await createDraftCampaign(upload);
-    }
-    await sql`update drafts set status = 'uploaded', zoho_campaign_id = ${campaignId}, updated_at = now() where id = ${draft.id}`;
+    const result = await sql.begin(async (tx) => {
+      const [draft] = await tx<DraftRow[]>`select * from drafts where id = ${payload.draft_id} for update`;
+      if (!draft || draft.send_locked) throw new Error('This draft is unavailable or a live send was already attempted. Create a new draft instead.');
+      const defaults = await getDefaults();
+      if (![defaults.sender_email, defaults.sender_name, defaults.list_id, defaults.topic_id].every((value) => value.trim())) {
+        throw new Error('Complete the sender, mailing list ID and topic ID in Settings → Campaign setup before uploading.');
+      }
+      const upload = {
+        name: draft.name,
+        subject: draft.subject,
+        preheader: draft.preheader,
+        html: draft.html,
+        senderEmail: defaults.sender_email,
+        senderName: defaults.sender_name,
+        listId: defaults.list_id,
+        topicId: defaults.topic_id,
+      };
+      let campaignId = draft.zoho_campaign_id;
+      if (campaignId) {
+        await updateDraftCampaign(campaignId, upload);
+      } else {
+        campaignId = await createDraftCampaign(upload);
+      }
+      // Bind later live-send requests to the provider's copy at upload time.
+      // An unavailable readback must not break the existing manual-send workflow.
+      const providerHash = await getCampaignRevision(campaignId).then(fingerprint).catch(() => null);
+      await tx`update drafts set status = 'uploaded', zoho_campaign_id = ${campaignId}, uploaded_fingerprint = ${uploadFingerprint(draft, defaults)},
+        uploaded_provider_fingerprint = ${providerHash}, updated_at = now() where id = ${draft.id}`;
+      return {
+        zoho_campaign_id: campaignId,
+        list: defaults.list_name,
+        topic: defaults.topic_name,
+        sender: defaults.sender_email,
+        note: 'Saved in Zoho Campaigns as a draft. It has not been sent or scheduled. The owner can send manually, or request a separate live send if enabled in Settings.',
+      };
+    });
     publish({ type: 'draft', draftId: draft.id, threadId: draft.thread_id });
-    return {
-      zoho_campaign_id: campaignId,
-      list: defaults.list_name,
-      topic: defaults.topic_name,
-      sender: defaults.sender_email,
-      note: 'Saved in Zoho Campaigns as a draft. It is not scheduled; the owner sends it from Zoho.',
-    };
+    return result;
   },
 
   /** Removes hard-bounced contacts from a Zoho Campaigns list. Zoho CRM is not touched. */
@@ -207,7 +218,5 @@ export const executors: Record<ActionName, Executor> = {
 
   generate_media: async (payload) => env.demoMode ? { simulated: true, url: `${env.publicUrl}/demo-assets/demo-maple.svg`, note: 'Prebuilt fictional illustration, not a newly generated photograph.' } : generateImage({ prompt: payload.prompt, aspect: payload.aspect }),
 
-  send_live: async () => {
-    throw new Error('Campaigns are not sent from the command center. The owner sends from Zoho.');
-  },
+  send_live: async (payload, _threadId, context) => executeLiveSend(payload as SendSnapshot, context?.approvalId),
 };

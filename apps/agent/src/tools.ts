@@ -65,6 +65,7 @@ export function commandCenterTools(threadId: string, jobId: string) {
       ),
       define('send_test', "Send a draft from your address to the owner's inbox so they can read it.", { draft_id: z.string() }),
       define('upload_draft', 'Save a draft into Zoho Campaigns as a draft campaign (never scheduled or sent).', { draft_id: z.string() }),
+      define('send_campaign', 'Request immediate live delivery of an uploaded draft to its mailing list. Uses the Send campaigns live guardrail: disabled by default, approval per send, or automatic. Never retry an uncertain send; ask the owner to check the provider.', { draft_id: z.string() }),
       define('find_hard_bounces', 'Count the addresses that hard-bounced on one send, with reasons.', { campaign_id: z.string() }),
       define('remove_hard_bounces', 'Ask to remove the addresses that hard-bounced on one send from the mailing list.', { campaign_id: z.string() }),
       define('remember', 'Save a preference, decision or lesson for future threads. One point per call, written to stand on its own.', {
@@ -109,6 +110,8 @@ export function stepLabel(name: string, input: Record<string, any>): { label: st
       return { label: 'Sent a test to your inbox' };
     case 'upload_draft':
       return { label: 'Asked to upload a draft to Zoho Campaigns' };
+    case 'send_campaign':
+      return { label: 'Requested a live campaign send' };
     case 'find_hard_bounces':
       return { label: 'Counted hard bounces on a send' };
     case 'remove_hard_bounces':

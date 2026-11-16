@@ -60,7 +60,7 @@ export function Settings() {
     <div className="card">{data.guardrails.map(g => <div className="settings-row" key={g.action}>
       <div><strong>{g.label}</strong><p className="note">{g.description}</p></div>
       {g.locked ? <span className="chip">Not available</span> : <select className="field settings-select" aria-label={g.label} value={g.level} disabled={busy} onChange={e => void run(() => api(`/guardrails/${g.action}`, { method: 'PATCH', body: { level: e.target.value } }))}>
-        <option value="draft_only">Draft only</option><option value="approve_first">Approve first</option><option value="autonomous">Autonomous</option>
+        <option value="draft_only">{g.action === 'send_live' ? 'Manual sending (agent off)' : 'Draft only'}</option><option value="approve_first">{g.action === 'send_live' ? 'Approve each live send' : 'Approve first'}</option><option value="autonomous">{g.action === 'send_live' ? 'Automatic sending' : 'Autonomous'}</option>
       </select>}
     </div>)}</div>
 
