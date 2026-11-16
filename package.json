@@ -1,0 +1,14 @@
+{
+  "name": "email-agent",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @ea/server --filter @ea/web dev",
+    "dev:agent": "pnpm --filter @ea/agent dev",
+    "build": "pnpm --filter @ea/web build && pnpm --filter @ea/server build",
+    "start": "pnpm --filter @ea/server start",
+    "migrate": "pnpm --filter @ea/server migrate",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  }
+}
